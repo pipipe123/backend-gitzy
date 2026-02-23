@@ -64,6 +64,7 @@ class SearchResultItem(BaseModel):
 # Devuelve resultados de búsqueda en GitHub, GitLab y Azure DevOps
 class SearchResponse(BaseModel):
     query: str                      # Texto que se buscó (ej: "fastapi")
+    filters: Optional[dict] = None  # Filtros aplicados (language, category, topic)
     results: List[SearchResultItem] # Lista de repositorios encontrados
     total_results: int              # Número total de resultados (len(results))
 
@@ -73,5 +74,6 @@ class SearchResponse(BaseModel):
 class SessionResponse(BaseModel):
     session_id: str                 # UUID de la sesión (ej: "a3f2c1b4-...")
     last_search_query: Optional[str]# Última búsqueda realizada (None si no ha buscado nada)
+    last_search_filters: Optional[dict] = None  # Últimos filtros aplicados
     last_results: List[Any]         # Últimos resultados guardados (tipo genérico)
     searches_count: int             # Número total de búsquedas realizadas por el usuario

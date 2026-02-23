@@ -2,7 +2,7 @@ from app.core.config import settings
 from app.utils.http_client import get
 
 
-async def search_azure_repositories(query: str):
+async def search_azure_repositories(query: str, filters=None):
     """Busca repositorios en Azure DevOps"""
     if not settings.AZURE_TOKEN:
         return []

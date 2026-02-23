@@ -17,8 +17,31 @@ from app.core.config import settings
 # Importa cliente HTTP asíncrono
 from app.utils.http_client import get
 
+from app.models.request_models import CATEGORY_TO_TOPICS
 
-async def search_github_repositories(query: str):
+
+def _build_github_query(query: str, filters) -> str:
+    """Construye query con qualifiers de GitHub (language:X, topic:Y)."""
+    parts = [query]
+
+    if filters is None:
+        return query
+
+    if filters.language is not None:
+        parts.append(f"language:{filters.language.value}")
+
+    if filters.category is not None:
+        topic_keyword = CATEGORY_TO_TOPICS.get(filters.category)
+        if topic_keyword:
+            parts.append(f"topic:{topic_keyword}")
+
+    if filters.topic is not None:
+        parts.append(f"topic:{filters.topic}")
+
+    return "+".join(parts)
+
+
+async def search_github_repositories(query: str, filters=None):
     """
     Busca repositorios en GitHub usando la Search API.
 
@@ -71,7 +94,8 @@ async def search_github_repositories(query: str):
     # - sort=forks, sort=updated (otras formas de ordenar)
     # - order=desc, order=asc (orden descendente/ascendente)
     # - page=2 (paginación)
-    url = f"https://api.github.com/search/repositories?q={query}&sort=stars&per_page=10"
+    full_query = _build_github_query(query, filters)
+    url = f"https://api.github.com/search/repositories?q={full_query}&sort=stars&per_page=10"
 
     # --- PASO 3: Hacer petición y procesar respuesta ---
     try:

@@ -10,7 +10,61 @@ con detalles de qué campos están incorrectos.
 
 # BaseModel: Clase base de Pydantic para crear modelos de datos con validación
 # HttpUrl: Tipo especial que valida que una string sea una URL válida
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, model_validator
+
+from typing import Optional
+from enum import Enum
+
+
+# Lenguajes de programación soportados para el filtro
+class ProgrammingLanguage(str, Enum):
+    PYTHON = "Python"
+    JAVASCRIPT = "JavaScript"
+    TYPESCRIPT = "TypeScript"
+    JAVA = "Java"
+    GO = "Go"
+    RUST = "Rust"
+    CPP = "C++"
+    C = "C"
+    CSHARP = "C#"
+    RUBY = "Ruby"
+    PHP = "PHP"
+    SWIFT = "Swift"
+    KOTLIN = "Kotlin"
+
+
+# Categorías fijas de tipo de proyecto
+class ProjectCategory(str, Enum):
+    LIBRARY = "Library"
+    FRAMEWORK = "Framework"
+    APPLICATION = "Application"
+    TOOL = "Tool"
+    API = "API"
+
+
+# Mapeo de categoría a topic usado en GitHub/GitLab
+CATEGORY_TO_TOPICS = {
+    ProjectCategory.LIBRARY: "library",
+    ProjectCategory.FRAMEWORK: "framework",
+    ProjectCategory.APPLICATION: "application",
+    ProjectCategory.TOOL: "tool",
+    ProjectCategory.API: "api",
+}
+
+
+class SearchFilters(BaseModel):
+    """Filtros opcionales de búsqueda. Máximo 3 filtros activos a la vez."""
+    language: Optional[ProgrammingLanguage] = None
+    category: Optional[ProjectCategory] = None
+    topic: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_max_filters(self):
+        active = sum(1 for v in [self.language, self.category, self.topic] if v is not None)
+        if active > 3:
+            raise ValueError("Máximo 3 filtros pueden aplicarse al mismo tiempo")
+        return self
+
 
 # Modelo para el endpoint POST /repository/analyze
 # Valida que el usuario envíe una URL válida de repositorio
@@ -29,3 +83,4 @@ class SearchRequest(BaseModel):
     # Ejemplo: "fastapi", "react", "machine learning"
     # Pydantic valida que sea string (no número, no null, etc.)
     query: str  # Texto de búsqueda
+    filters: Optional[SearchFilters] = None  # Filtros opcionales

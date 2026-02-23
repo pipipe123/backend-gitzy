@@ -16,16 +16,32 @@ Diferencias con GitHub:
 - Usa "namespace" en vez de "owner"
 """
 
+import asyncio
 from app.core.config import settings
 from app.utils.http_client import get
+from app.models.request_models import CATEGORY_TO_TOPICS
 
 
-async def search_gitlab_repositories(query: str):
+async def _get_gitlab_project_languages(project_id: int, headers: dict) -> list:
+    """Obtiene los lenguajes de un proyecto GitLab."""
+    url = f"https://gitlab.com/api/v4/projects/{project_id}/languages"
+    try:
+        response = await get(url, headers if headers else None)
+        if response.status_code == 200:
+            # GitLab retorna {"Python": 85.5, "Shell": 14.5}
+            return list(response.json().keys())
+        return []
+    except Exception:
+        return []
+
+
+async def search_gitlab_repositories(query: str, filters=None):
     """
     Busca proyectos en GitLab usando la Projects API.
 
     Args:
         query: Texto a buscar (busca en nombre y descripción)
+        filters: Filtros opcionales (language, category, topic)
 
     Returns:
         Lista de diccionarios con información de proyectos encontrados
@@ -42,75 +58,79 @@ async def search_gitlab_repositories(query: str):
         headers["PRIVATE-TOKEN"] = settings.GITLAB_TOKEN
 
     # --- PASO 2: Construir URL de búsqueda ---
-    # Parámetros:
-    # - search={query}: Texto a buscar (en nombre y descripción)
-    # - per_page=10: Limita a 10 resultados
-    # - order_by=stars: Ordena por número de estrellas (star_count)
-    #
-    # Otros parámetros disponibles:
-    # - order_by=last_activity_at (más recientes)
-    # - order_by=created_at (más nuevos)
-    # - visibility=public (solo públicos, es el default)
-    url = f"https://gitlab.com/api/v4/projects?search={query}&per_page=10&order_by=stars"
+    need_language_filter = filters is not None and filters.language is not None
+    # Si hay filtro de lenguaje, pedimos más resultados para compensar el post-filtrado
+    per_page = 30 if need_language_filter else 10
+
+    url = f"https://gitlab.com/api/v4/projects?search={query}&per_page={per_page}&order_by=stars"
+
+    # Agregar filtro de topic (nativo en GitLab)
+    if filters is not None:
+        if filters.topic is not None:
+            url += f"&topic={filters.topic}"
+        if filters.category is not None:
+            topic_keyword = CATEGORY_TO_TOPICS.get(filters.category)
+            if topic_keyword:
+                url += f"&topic={topic_keyword}"
 
     try:
         # --- PASO 3: Hacer petición HTTP ---
-        # Si headers está vacío (no hay token), pasa None
-        # "headers if headers else None" = pasa headers solo si tiene contenido
         response = await get(url, headers if headers else None)
 
         # Verificar código de estado
         if response.status_code != 200:
-            # Error: retorna lista vacía
             return []
 
         # Parsear JSON
-        # GitLab devuelve directamente una lista de proyectos
-        # (diferente a GitHub que devuelve {"items": [...]})
         projects = response.json()
 
-        # Inicializar lista de resultados
-        results = []
+        # --- PASO 4: Procesar resultados ---
+        if need_language_filter:
+            # Obtener lenguajes de todos los proyectos en paralelo
+            language_tasks = [
+                _get_gitlab_project_languages(project.get("id"), headers)
+                for project in projects
+            ]
+            all_languages = await asyncio.gather(*language_tasks)
 
-        # --- PASO 4: Procesar cada proyecto ---
-        for project in projects:
-            results.append({
-                # Identificador del proveedor
-                "provider": "gitlab",
+            target_language = filters.language.value  # ej: "Python"
+            results = []
 
-                # Nombre del proyecto
-                "name": project.get("name", ""),
+            for project, languages in zip(projects, all_languages):
+                if target_language not in languages:
+                    continue
 
-                # Dueño del proyecto
-                # En GitLab se llama "namespace" (usuario o grupo)
-                # project["namespace"] es un dict con {"name": "...", "path": "..."}
-                "owner": project.get("namespace", {}).get("name", ""),
+                results.append({
+                    "provider": "gitlab",
+                    "name": project.get("name", ""),
+                    "owner": project.get("namespace", {}).get("name", ""),
+                    "description": project.get("description"),
+                    "url": project.get("web_url", ""),
+                    "stars": project.get("star_count", 0),
+                    "language": target_language,
+                    "updated_at": project.get("last_activity_at", "")
+                })
 
-                # Descripción del proyecto
-                "description": project.get("description"),
+                if len(results) >= 10:
+                    break
 
-                # URL web del proyecto
-                "url": project.get("web_url", ""),
-
-                # Número de estrellas
-                "stars": project.get("star_count", 0),
-
-                # ⚠️ LIMITACIÓN: GitLab API de búsqueda no incluye lenguaje principal
-                # Para obtener el lenguaje, necesitaríamos hacer una petición
-                # adicional por cada proyecto: GET /projects/:id/languages
-                # Esto sería muy lento (10 proyectos = 10 peticiones extra)
-                # Por eso dejamos language como None
-                "language": None,
-
-                # Fecha de última actividad (commits, merge requests, etc.)
-                # "last_activity_at" es más preciso que "updated_at"
-                "updated_at": project.get("last_activity_at", "")
-            })
-
-        # Retornar resultados procesados
-        return results
+            return results
+        else:
+            # Sin filtro de lenguaje: procesar normalmente
+            results = []
+            for project in projects:
+                results.append({
+                    "provider": "gitlab",
+                    "name": project.get("name", ""),
+                    "owner": project.get("namespace", {}).get("name", ""),
+                    "description": project.get("description"),
+                    "url": project.get("web_url", ""),
+                    "stars": project.get("star_count", 0),
+                    "language": None,
+                    "updated_at": project.get("last_activity_at", "")
+                })
+            return results
 
     except Exception as e:
-        # Capturar cualquier error
         print(f"Error buscando en GitLab: {str(e)}")
         return []

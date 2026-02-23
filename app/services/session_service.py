@@ -96,6 +96,9 @@ def create_session() -> str:
         # None al inicio porque no ha hecho ninguna búsqueda
         "last_search_query": None,
 
+        # last_search_filters: Últimos filtros aplicados
+        "last_search_filters": None,
+
         # last_results: Últimos resultados obtenidos (acceso rápido)
         # Lista vacía al inicio
         "last_results": []
@@ -169,7 +172,7 @@ def update_session(session_id: str, data: Dict[str, Any]) -> None:
 # ============================================================================
 # FUNCIÓN 4: save_search_to_session() - Guardar búsqueda realizada
 # ============================================================================
-def save_search_to_session(session_id: str, query: str, results: list) -> None:
+def save_search_to_session(session_id: str, query: str, results: list, filters: Optional[dict] = None) -> None:
     """
     Guarda una búsqueda y sus resultados en la sesión del usuario.
 
@@ -200,6 +203,9 @@ def save_search_to_session(session_id: str, query: str, results: list) -> None:
             # query: Texto que se buscó
             "query": query,
 
+            # filters: Filtros aplicados en esta búsqueda
+            "filters": filters,
+
             # timestamp: Cuándo se realizó la búsqueda
             # Formato ISO: "2024-01-15T10:30:00.123456"
             "timestamp": datetime.now().isoformat(),
@@ -215,6 +221,9 @@ def save_search_to_session(session_id: str, query: str, results: list) -> None:
 
         # last_search_query: Última query (para mostrar en UI)
         session["last_search_query"] = query
+
+        # last_search_filters: Últimos filtros aplicados
+        session["last_search_filters"] = filters
 
         # last_results: Últimos resultados completos
         # Esto permite mostrar los resultados al reabrir el sitio

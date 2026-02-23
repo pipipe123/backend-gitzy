@@ -52,16 +52,21 @@ async def search_repositories(
         session_id = create_session()
         _set_session_cookie(response, session_id)
 
-    github_results = await search_github_repositories(request.query)
-    gitlab_results = await search_gitlab_repositories(request.query)
-    azure_results = await search_azure_repositories(request.query)
+    filters = request.filters
+
+    github_results = await search_github_repositories(request.query, filters)
+    gitlab_results = await search_gitlab_repositories(request.query, filters)
+    azure_results = await search_azure_repositories(request.query, filters)
 
     all_results = github_results + gitlab_results + azure_results
     search_items = [SearchResultItem(**item) for item in all_results]
-    save_search_to_session(session_id, request.query, all_results)
+
+    filters_dict = filters.model_dump() if filters else None
+    save_search_to_session(session_id, request.query, all_results, filters_dict)
 
     return SearchResponse(
         query=request.query,
+        filters=filters_dict,
         results=search_items,
         total_results=len(search_items)
     )
@@ -82,6 +87,7 @@ async def get_session_data(
     return SessionResponse(
         session_id=session_id,
         last_search_query=session_data.get("last_search_query"),
+        last_search_filters=session_data.get("last_search_filters"),
         last_results=session_data.get("last_results", []),
         searches_count=len(session_data.get("searches", []))
     )
