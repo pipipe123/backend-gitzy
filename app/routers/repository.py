@@ -8,12 +8,18 @@ from typing import Optional
 from app.models.request_models import RepositoryAnalyzeRequest, SearchRequest
 from app.models.response_models import (
     RepositoryResponse,
+    RepositoryStructureResponse,
     SearchResponse,
     SessionResponse,
     SearchResultItem
 )
 from app.services.provider_detector import detect_provider
 from app.services.github_service import get_github_repository
+from app.services.github_structure_service import get_github_structure
+from app.services.gitlab_analyze_service import get_gitlab_repository
+from app.services.gitlab_structure_service import get_gitlab_structure
+from app.services.azure_analyze_service import get_azure_repository
+from app.services.azure_structure_service import get_azure_structure
 from app.services.github_search_service import search_github_repositories
 from app.services.gitlab_service import search_gitlab_repositories
 from app.services.azure_service import search_azure_repositories
@@ -100,15 +106,53 @@ async def analyze_repository(request: RepositoryAnalyzeRequest):
     if not provider:
         raise HTTPException(
             status_code=400,
-            detail="URL no soportada. Solo se admiten repositorios de GitHub."
+            detail="URL no soportada. Solo se admiten repositorios de GitHub, GitLab y Azure DevOps."
         )
 
-    if provider == "github":
-        try:
+    try:
+        if provider == "github":
             data = await get_github_repository(repo_info)
             return data
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Error al analizar el repositorio: {str(e)}"
-            )
+        elif provider == "gitlab":
+            data = await get_gitlab_repository(repo_info)
+            return data
+        elif provider == "azure":
+            data = await get_azure_repository(repo_info)
+            return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al analizar el repositorio: {str(e)}"
+        )
+
+
+@router.post("/structure", response_model=RepositoryStructureResponse)
+async def get_repository_structure(request: RepositoryAnalyzeRequest):
+    """Obtiene la estructura de archivos y carpetas de un repositorio."""
+    provider, repo_info = detect_provider(str(request.url))
+
+    if not provider:
+        raise HTTPException(
+            status_code=400,
+            detail="URL no soportada. Solo se admiten repositorios de GitHub, GitLab y Azure DevOps."
+        )
+
+    try:
+        if provider == "github":
+            data = await get_github_structure(repo_info)
+            return data
+        elif provider == "gitlab":
+            data = await get_gitlab_structure(repo_info)
+            return data
+        elif provider == "azure":
+            data = await get_azure_structure(repo_info)
+            return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener la estructura del repositorio: {str(e)}"
+        )

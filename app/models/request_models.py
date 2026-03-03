@@ -58,7 +58,7 @@ class SearchFilters(BaseModel):
     category: Optional[ProjectCategory] = None
     topic: Optional[str] = None
 
-    @model_validator(mode="after")
+    @model_validator(mode="after")#hace que primero cuente los filtros
     def validate_max_filters(self):
         active = sum(1 for v in [self.language, self.category, self.topic] if v is not None)
         if active > 3:

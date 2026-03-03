@@ -71,6 +71,27 @@ class SearchResponse(BaseModel):
 
 # Modelo para la respuesta del endpoint GET /repository/session
 # Devuelve información de la sesión del usuario guardada en la cookie
+class TreeNode(BaseModel):
+    name: str
+    path: str
+    type: str
+    size: Optional[int] = None
+    children: Optional[List["TreeNode"]] = None
+
+
+TreeNode.model_rebuild()
+
+
+class RepositoryStructureResponse(BaseModel):
+    provider: str
+    owner: str
+    name: str
+    default_branch: str
+    total_files: int
+    total_directories: int
+    tree: List[TreeNode]
+
+
 class SessionResponse(BaseModel):
     session_id: str                 # UUID de la sesión (ej: "a3f2c1b4-...")
     last_search_query: Optional[str]# Última búsqueda realizada (None si no ha buscado nada)

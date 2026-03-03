@@ -68,18 +68,25 @@ def detect_provider(url: str):
                 "repo": parts[1]    # Segunda parte = repositorio
             }
 
-    # --- Detectores futuros ---
-    # Aquí se pueden agregar detectores para otros proveedores:
-    #
-    # if "gitlab.com" in parsed.netloc:
-    #     # Lógica similar para GitLab
-    #     # GitLab puede tener grupos anidados: gitlab.com/group/subgroup/project
-    #     pass
-    #
-    # if "dev.azure.com" in parsed.netloc:
-    #     # Azure DevOps tiene estructura diferente:
-    #     # dev.azure.com/{organization}/{project}/_git/{repository}
-    #     pass
+    # --- Detector de GitLab ---
+    if "gitlab.com" in parsed.netloc:
+        parts = parsed.path.strip("/").split("/")
+        if len(parts) >= 2:
+            return "gitlab", {
+                "owner": parts[0],
+                "repo": parts[1]
+            }
+
+    # --- Detector de Azure DevOps ---
+    # URL: https://dev.azure.com/{organization}/{project}/_git/{repository}
+    if "dev.azure.com" in parsed.netloc:
+        parts = parsed.path.strip("/").split("/")
+        if len(parts) >= 4 and parts[2] == "_git":
+            return "azure", {
+                "organization": parts[0],
+                "project": parts[1],
+                "repo": parts[3]
+            }
 
     # Si no coincide con ningún proveedor conocido, retorna None
     return None, None

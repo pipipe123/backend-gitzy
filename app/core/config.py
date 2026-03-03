@@ -12,6 +12,7 @@ class Settings:
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
     GITLAB_TOKEN: str = os.getenv("GITLAB_TOKEN", "")
     AZURE_TOKEN: str = os.getenv("AZURE_TOKEN", "")
+    AZURE_ORGANIZATION: str = os.getenv("AZURE_ORGANIZATION", "")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     COOKIE_NAME: str = "session_id"
     COOKIE_MAX_AGE: int = 30 * 24 * 60 * 60  # 30 days
