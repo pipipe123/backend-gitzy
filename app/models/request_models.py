@@ -52,11 +52,18 @@ CATEGORY_TO_TOPICS = {
 }
 
 
+class Provider(str, Enum):
+    GITHUB = "GitHub"
+    GITLAB = "GitLab"
+    AZURE = "Azure"
+
+
 class SearchFilters(BaseModel):
     """Filtros opcionales de búsqueda. Máximo 3 filtros activos a la vez."""
     language: Optional[ProgrammingLanguage] = None
     category: Optional[ProjectCategory] = None
     topic: Optional[str] = None
+    provider: Optional[Provider] = None
 
     @model_validator(mode="after")#hace que primero cuente los filtros
     def validate_max_filters(self):
@@ -74,6 +81,20 @@ class RepositoryAnalyzeRequest(BaseModel):
     # ✅ Válido: "https://github.com/user/repo"
     # ❌ Inválido: "no-es-una-url", "github.com" (sin protocolo)
     url: HttpUrl  # esto valida que lo que reciba sea una url
+
+
+# Modelo para los endpoints POST /repository/file/content y /file/download
+# Valida URL del repositorio + ruta del archivo
+class FileContentRequest(BaseModel):
+    url: HttpUrl          # URL del repositorio (ej: "https://github.com/user/repo")
+    path: str             # Ruta del archivo dentro del repo (ej: "src/main.py")
+    ref: Optional[str] = None  # Branch o commit (opcional, usa default_branch si es None)
+
+    @model_validator(mode="after")
+    def clean_ref(self):
+        if self.ref in (None, "", "string"):
+            self.ref = None
+        return self
 
 
 # Modelo para el endpoint POST /repository/search

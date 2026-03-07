@@ -5,10 +5,11 @@ repository.py - Router con todos los endpoints de la API (Producción)
 from fastapi import APIRouter, HTTPException, Response, Cookie
 from typing import Optional
 
-from app.models.request_models import RepositoryAnalyzeRequest, SearchRequest
+from app.models.request_models import RepositoryAnalyzeRequest, FileContentRequest, SearchRequest, Provider
 from app.models.response_models import (
     RepositoryResponse,
     RepositoryStructureResponse,
+    FileContentResponse,
     SearchResponse,
     SessionResponse,
     SearchResultItem
@@ -16,10 +17,13 @@ from app.models.response_models import (
 from app.services.provider_detector import detect_provider
 from app.services.github_service import get_github_repository
 from app.services.github_structure_service import get_github_structure
+from app.services.github_file_service import get_github_file_content, get_github_file_raw
 from app.services.gitlab_analyze_service import get_gitlab_repository
 from app.services.gitlab_structure_service import get_gitlab_structure
+from app.services.gitlab_file_service import get_gitlab_file_content, get_gitlab_file_raw
 from app.services.azure_analyze_service import get_azure_repository
 from app.services.azure_structure_service import get_azure_structure
+from app.services.azure_file_service import get_azure_file_content, get_azure_file_raw
 from app.services.github_search_service import search_github_repositories
 from app.services.gitlab_service import search_gitlab_repositories
 from app.services.azure_service import search_azure_repositories
@@ -60,9 +64,11 @@ async def search_repositories(
 
     filters = request.filters
 
-    github_results = await search_github_repositories(request.query, filters)
-    gitlab_results = await search_gitlab_repositories(request.query, filters)
-    azure_results = await search_azure_repositories(request.query, filters)
+    provider = filters.provider if filters else None
+
+    github_results = await search_github_repositories(request.query, filters) if not provider or provider == Provider.GITHUB else []
+    gitlab_results = await search_gitlab_repositories(request.query, filters) if not provider or provider == Provider.GITLAB else []
+    azure_results = await search_azure_repositories(request.query, filters) if not provider or provider == Provider.AZURE else []
 
     all_results = github_results + gitlab_results + azure_results
     search_items = [SearchResultItem(**item) for item in all_results]
@@ -155,4 +161,80 @@ async def get_repository_structure(request: RepositoryAnalyzeRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Error al obtener la estructura del repositorio: {str(e)}"
+        )
+
+
+@router.post("/file/content", response_model=FileContentResponse)
+async def get_file_content(request: FileContentRequest):
+    """Obtiene el contenido de un archivo de un repositorio."""
+    provider, repo_info = detect_provider(str(request.url))
+
+    if not provider:
+        raise HTTPException(
+            status_code=400,
+            detail="URL no soportada. Solo se admiten repositorios de GitHub, GitLab y Azure DevOps."
+        )
+
+    try:
+        if provider == "github":
+            data = await get_github_file_content(repo_info, request.path, request.ref)
+        elif provider == "gitlab":
+            data = await get_gitlab_file_content(repo_info, request.path, request.ref)
+        elif provider == "azure":
+            data = await get_azure_file_content(repo_info, request.path, request.ref)
+        else:
+            data = None
+
+        if data is None:
+            raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+        return data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener el contenido del archivo: {str(e)}"
+        )
+
+
+@router.post("/file/download")
+async def download_file(request: FileContentRequest):
+    """Descarga un archivo de un repositorio como bytes raw."""
+    provider, repo_info = detect_provider(str(request.url))
+
+    if not provider:
+        raise HTTPException(
+            status_code=400,
+            detail="URL no soportada. Solo se admiten repositorios de GitHub, GitLab y Azure DevOps."
+        )
+
+    try:
+        if provider == "github":
+            content, file_name = await get_github_file_raw(repo_info, request.path, request.ref)
+        elif provider == "gitlab":
+            content, file_name = await get_gitlab_file_raw(repo_info, request.path, request.ref)
+        elif provider == "azure":
+            content, file_name = await get_azure_file_raw(repo_info, request.path, request.ref)
+        else:
+            content, file_name = None, None
+
+        if content is None:
+            raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f'attachment; filename="{file_name}"'
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al descargar el archivo: {str(e)}"
         )

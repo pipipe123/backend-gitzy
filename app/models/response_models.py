@@ -92,6 +92,17 @@ class RepositoryStructureResponse(BaseModel):
     tree: List[TreeNode]
 
 
+class FileContentResponse(BaseModel):
+    provider: str              # "github", "gitlab" o "azure"
+    repo_name: str             # Nombre del repositorio
+    file_path: str             # Ruta completa del archivo en el repo
+    file_name: str             # Nombre del archivo (ej: "main.py")
+    content: str               # Contenido del archivo (texto o base64 si es binario)
+    encoding: str              # "utf-8" o "base64"
+    size: Optional[int] = None # Tamaño en bytes
+    is_binary: bool = False    # True si el archivo es binario
+
+
 class SessionResponse(BaseModel):
     session_id: str                 # UUID de la sesión (ej: "a3f2c1b4-...")
     last_search_query: Optional[str]# Última búsqueda realizada (None si no ha buscado nada)
