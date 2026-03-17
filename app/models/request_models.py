@@ -97,6 +97,12 @@ class FileContentRequest(BaseModel):
         return self
 
 
+# Modelo para el endpoint POST /repository/metrics
+class MetricsRequest(BaseModel):
+    url: HttpUrl
+    max_files: int = 30
+
+
 # Modelo para el endpoint POST /repository/search
 # Valida que el usuario envíe un texto de búsqueda
 class SearchRequest(BaseModel):

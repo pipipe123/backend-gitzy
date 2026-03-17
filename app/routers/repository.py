@@ -5,14 +5,15 @@ repository.py - Router con todos los endpoints de la API (Producción)
 from fastapi import APIRouter, HTTPException, Response, Cookie
 from typing import Optional
 
-from app.models.request_models import RepositoryAnalyzeRequest, FileContentRequest, SearchRequest, Provider
+from app.models.request_models import RepositoryAnalyzeRequest, FileContentRequest, SearchRequest, MetricsRequest, Provider
 from app.models.response_models import (
     RepositoryResponse,
     RepositoryStructureResponse,
     FileContentResponse,
     SearchResponse,
     SessionResponse,
-    SearchResultItem
+    SearchResultItem,
+    MetricsResponse,
 )
 from app.services.provider_detector import detect_provider
 from app.services.github_service import get_github_repository
@@ -27,11 +28,13 @@ from app.services.azure_file_service import get_azure_file_content, get_azure_fi
 from app.services.github_search_service import search_github_repositories
 from app.services.gitlab_service import search_gitlab_repositories
 from app.services.azure_service import search_azure_repositories
+from app.services.metrics_service import calculate_metrics
 from app.services.session_service import (
     create_session,
     get_session,
     save_search_to_session
 )
+from app.services.export_service import save_search_results
 from app.core.config import settings
 
 router = APIRouter(
@@ -75,6 +78,7 @@ async def search_repositories(
 
     filters_dict = filters.model_dump() if filters else None
     save_search_to_session(session_id, request.query, all_results, filters_dict)
+    save_search_results(request.query, all_results, filters_dict)
 
     return SearchResponse(
         query=request.query,
@@ -237,4 +241,27 @@ async def download_file(request: FileContentRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Error al descargar el archivo: {str(e)}"
+        )
+
+
+@router.post("/metrics", response_model=MetricsResponse)
+async def get_repository_metrics(request: MetricsRequest):
+    """Calcula métricas de código: complejidad ciclomática, líneas por función, ratio comentario/código."""
+    provider, repo_info = detect_provider(str(request.url))
+
+    if not provider:
+        raise HTTPException(
+            status_code=400,
+            detail="URL no soportada. Solo se admiten repositorios de GitHub, GitLab y Azure DevOps."
+        )
+
+    try:
+        data = await calculate_metrics(provider, repo_info, request.max_files)
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al calcular métricas del repositorio: {str(e)}"
         )

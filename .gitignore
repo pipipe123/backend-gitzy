@@ -23,6 +23,9 @@ env/
 *.swo
 *~
 
+# Search results export
+search_results/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -103,6 +103,43 @@ class FileContentResponse(BaseModel):
     is_binary: bool = False    # True si el archivo es binario
 
 
+class FunctionMetrics(BaseModel):
+    name: str
+    line_start: int
+    line_end: int
+    lines: int
+    cyclomatic_complexity: int
+
+
+class FileMetrics(BaseModel):
+    path: str
+    functions: List[FunctionMetrics]
+    comment_lines: int
+    code_lines: int
+    blank_lines: int
+    comment_code_ratio: float
+
+
+class MetricsSummary(BaseModel):
+    avg_cyclomatic_complexity: float
+    avg_lines_per_function: float
+    comment_code_ratio: float
+    total_functions: int
+    total_lines_of_code: int
+    total_comment_lines: int
+
+
+class MetricsResponse(BaseModel):
+    provider: str
+    owner: str
+    name: str
+    language: str
+    files_analyzed: int
+    files_skipped: int
+    summary: MetricsSummary
+    files: List[FileMetrics]
+
+
 class SessionResponse(BaseModel):
     session_id: str                 # UUID de la sesión (ej: "a3f2c1b4-...")
     last_search_query: Optional[str]# Última búsqueda realizada (None si no ha buscado nada)
