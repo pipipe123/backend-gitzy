@@ -1,7 +1,7 @@
 """
-llm_service.py - Cliente de Anthropic (Claude) para generar resúmenes y análisis de código
+llm_service.py - Cliente de Hugging Face Inference API para generar resúmenes y análisis de código
 
-Usa la API de Anthropic para:
+Usa modelos open-source gratuitos (Qwen/Mistral) a través de la Inference API de HF:
 - Generar resúmenes inteligentes de repositorios
 - Analizar calidad y patrones de código
 - Generar sugerencias de mejora con diff simulado
@@ -9,27 +9,56 @@ Usa la API de Anthropic para:
 
 import json
 import difflib
+import re
 
-import anthropic
+from huggingface_hub import InferenceClient
 
 from app.core.config import settings
 
-_client: anthropic.AsyncAnthropic | None = None
+_client: InferenceClient | None = None
+
+MODEL_ID = "Qwen/Qwen2.5-Coder-32B-Instruct"
 
 
-def _get_client() -> anthropic.AsyncAnthropic:
+def _get_client() -> InferenceClient:
     global _client
     if _client is None:
-        if not settings.ANTHROPIC_API_KEY:
-            raise RuntimeError("ANTHROPIC_API_KEY no está configurada")
-        _client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        if not settings.HF_API_TOKEN:
+            raise RuntimeError("HF_API_TOKEN no está configurada")
+        _client = InferenceClient(provider="hf-inference", api_key=settings.HF_API_TOKEN)
     return _client
 
 
-async def generate_ai_summary(repo_data: dict) -> str:
-    """Genera un resumen inteligente del repositorio usando Claude."""
+def _chat(prompt: str, max_tokens: int = 1024) -> str:
+    """Envía un prompt al modelo y devuelve la respuesta como texto."""
     client = _get_client()
+    response = client.chat_completion(
+        model=MODEL_ID,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=max_tokens,
+        temperature=0.3,
+    )
+    return response.choices[0].message.content.strip()
 
+
+def _extract_json(text: str) -> dict | None:
+    """Intenta extraer un JSON de la respuesta, limpiando markdown si es necesario."""
+    cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip())
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        match = re.search(r"\{[\s\S]*\}", cleaned)
+        if match:
+            try:
+                return json.loads(match.group())
+            except json.JSONDecodeError:
+                pass
+    return None
+
+
+async def generate_ai_summary(repo_data: dict) -> str:
+    """Genera un resumen inteligente del repositorio."""
     languages = ", ".join(repo_data.get("languages", [])) or "No detectados"
     commits_text = ""
     for c in repo_data.get("commits", [])[:5]:
@@ -56,19 +85,11 @@ Incluye:
 2. Estado del proyecto (actividad, popularidad, madurez)
 3. Tecnologías principales y observaciones relevantes"""
 
-    message = await client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=512,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    return message.content[0].text
+    return _chat(prompt, max_tokens=512)
 
 
 async def analyze_code_with_ai(file_path: str, code: str, language: str) -> dict:
     """Analiza un fragmento de código y devuelve observaciones sobre calidad."""
-    client = _get_client()
-
     prompt = f"""Analiza el siguiente código ({language}) del archivo "{file_path}" y responde en español con un JSON que tenga estas claves:
 - "quality_score": número del 1 al 10
 - "summary": resumen breve de qué hace el código (1-2 líneas)
@@ -82,22 +103,19 @@ Responde SOLO con el JSON, sin markdown ni texto adicional.
 {code}
 ```"""
 
-    message = await client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=512,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    text = _chat(prompt, max_tokens=512)
+    result = _extract_json(text)
 
-    try:
-        return json.loads(message.content[0].text)
-    except json.JSONDecodeError:
-        return {
-            "quality_score": 0,
-            "summary": message.content[0].text,
-            "strengths": [],
-            "improvements": [],
-            "patterns": [],
-        }
+    if result:
+        return result
+
+    return {
+        "quality_score": 0,
+        "summary": text,
+        "strengths": [],
+        "improvements": [],
+        "patterns": [],
+    }
 
 
 def _extract_snippet(code: str, line_start: int, line_end: int) -> str:
@@ -121,8 +139,6 @@ def _build_diff(original: str, improved: str, file_name: str) -> str:
 
 async def suggest_improvements_for_file(code: str, language: str, file_name: str) -> dict:
     """Genera sugerencias de mejora para un archivo individual."""
-    client = _get_client()
-
     prompt = f"""Analiza el siguiente código ({language}) del archivo "{file_name}" y responde en español con un JSON que tenga estas claves:
 
 - "suggestions": lista de objetos, cada uno con:
@@ -147,16 +163,13 @@ Reglas:
 {code}
 ```"""
 
-    message = await client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    text = _chat(prompt, max_tokens=2048)
+    result = _extract_json(text)
 
-    try:
-        result = json.loads(message.content[0].text)
-    except json.JSONDecodeError:
+    if not result:
         return {
+            "file_name": file_name,
+            "language": language,
             "suggestions": [],
             "improved_code": code,
             "diff": "",
