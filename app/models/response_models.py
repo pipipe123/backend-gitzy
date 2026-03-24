@@ -45,6 +45,7 @@ class RepositoryResponse(BaseModel):
     languages: List[str]       # Lista de lenguajes usados (ej: ["Python", "JavaScript"])
     commits: List[Commit]      # Lista de últimos commits (objetos Commit)
     url: str                   # URL completa al repositorio
+    summary: Optional["RepositorySummary"] = None  # Resumen general del análisis
 
 
 # Modelo para un resultado individual de búsqueda
@@ -138,6 +139,73 @@ class MetricsResponse(BaseModel):
     files_skipped: int
     summary: MetricsSummary
     files: List[FileMetrics]
+
+
+class RepositorySummary(BaseModel):
+    popularity_level: str          # "Muy popular", "Popular", "Moderado", "Bajo", "Nuevo"
+    activity_level: str            # "Muy activo", "Activo", "Moderado", "Bajo", "Inactivo"
+    languages_count: int           # Cantidad de lenguajes detectados
+    primary_language: Optional[str]  # Lenguaje principal (primero de la lista)
+    health_score: float            # Puntuación de salud 0-100
+    description: str               # Resumen en texto natural del repositorio
+
+
+class AISummaryResponse(BaseModel):
+    provider: str
+    owner: str
+    name: str
+    ai_summary: str
+
+
+class CodeAnalysisResponse(BaseModel):
+    file_path: str
+    language: str
+    quality_score: int
+    summary: str
+    strengths: List[str]
+    improvements: List[str]
+    patterns: List[str]
+
+
+class CodeSuggestion(BaseModel):
+    file_name: str
+    title: str
+    description: str
+    severity: str              # "high", "medium", "low"
+    line_start: int
+    line_end: int
+    original_snippet: str
+    suggested_snippet: str
+
+
+class FileSuggestionsResult(BaseModel):
+    file_name: str
+    language: str
+    suggestions: List[CodeSuggestion]
+    improved_code: str
+    diff: str
+
+
+class CodeSuggestionsResponse(BaseModel):
+    total_suggestions: int
+    files: List[FileSuggestionsResult]
+
+
+class HistoryEntry(BaseModel):
+    entry_id: str
+    action: str                    # "analyze", "ai_summary", "ai_code_analysis", "ai_suggestions"
+    provider: Optional[str] = None
+    repo_name: Optional[str] = None
+    repo_owner: Optional[str] = None
+    url: Optional[str] = None
+    details: dict = {}
+    timestamp: str
+
+
+class HistoryResponse(BaseModel):
+    session_id: str
+    total_entries: int
+    entries: List[HistoryEntry]
 
 
 class SessionResponse(BaseModel):

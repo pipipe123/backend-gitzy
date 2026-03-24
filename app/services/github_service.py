@@ -1,5 +1,6 @@
 from app.core.config import settings
 from app.utils.http_client import get
+from app.services.summary_service import generate_repository_summary
 
 
 async def get_github_repository(repo_info: dict):
@@ -37,7 +38,7 @@ async def get_github_repository(repo_info: dict):
             "author": commit["commit"]["author"]["name"]
         })
 
-    return {
+    result = {
         "provider": "github",
         "name": repo_data["name"],
         "owner": repo_data["owner"]["login"],
@@ -53,3 +54,7 @@ async def get_github_repository(repo_info: dict):
         "commits": commits,
         "url": repo_data["html_url"]
     }
+
+    result["summary"] = generate_repository_summary(result)
+
+    return result

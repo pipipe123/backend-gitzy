@@ -16,6 +16,7 @@ from urllib.parse import quote
 
 from app.core.config import settings
 from app.utils.http_client import get
+from app.services.summary_service import generate_repository_summary
 
 
 async def get_gitlab_repository(repo_info: dict) -> dict:
@@ -51,7 +52,7 @@ async def get_gitlab_repository(repo_info: dict) -> dict:
                 "author": commit.get("author_name")
             })
 
-    return {
+    result = {
         "provider": "gitlab",
         "name": project_data.get("name", ""),
         "owner": project_data.get("namespace", {}).get("name", ""),
@@ -67,3 +68,7 @@ async def get_gitlab_repository(repo_info: dict) -> dict:
         "commits": commits,
         "url": project_data.get("web_url", "")
     }
+
+    result["summary"] = generate_repository_summary(result)
+
+    return result

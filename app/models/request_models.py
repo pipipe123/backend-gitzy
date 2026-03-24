@@ -105,6 +105,36 @@ class MetricsRequest(BaseModel):
 
 # Modelo para el endpoint POST /repository/search
 # Valida que el usuario envíe un texto de búsqueda
+class CodeAnalysisRequest(BaseModel):
+    url: HttpUrl
+    path: str
+    ref: Optional[str] = None
+
+    @model_validator(mode="after")
+    def clean_ref(self):
+        if self.ref in (None, "", "string"):
+            self.ref = None
+        return self
+
+
+class FileInput(BaseModel):
+    file_name: str
+    language: str = "python"
+    code: str
+
+
+class CodeSuggestionsRequest(BaseModel):
+    files: list[FileInput]
+
+    @model_validator(mode="after")
+    def validate_files(self):
+        if not self.files:
+            raise ValueError("Debe enviar al menos un archivo")
+        if len(self.files) > 10:
+            raise ValueError("Máximo 10 archivos por solicitud")
+        return self
+
+
 class SearchRequest(BaseModel):
     # Campo 'query' es una string con el texto a buscar
     # Ejemplo: "fastapi", "react", "machine learning"

@@ -16,6 +16,7 @@ import base64
 
 from app.core.config import settings
 from app.utils.http_client import get
+from app.services.summary_service import generate_repository_summary
 
 
 def _get_azure_headers() -> dict:
@@ -60,7 +61,7 @@ async def get_azure_repository(repo_info: dict) -> dict:
 
     web_url = repo_data.get("webUrl", "")
 
-    return {
+    result = {
         "provider": "azure",
         "name": repo_data.get("name", ""),
         "owner": project_data.get("name", org),
@@ -76,3 +77,7 @@ async def get_azure_repository(repo_info: dict) -> dict:
         "commits": commits,
         "url": web_url
     }
+
+    result["summary"] = generate_repository_summary(result)
+
+    return result

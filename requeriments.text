@@ -4,3 +4,5 @@ httpx
 python-dotenv
 python-jose[cryptography]
 passlib[bcrypt]
+anthropic
+fpdf2
