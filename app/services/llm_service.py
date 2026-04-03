@@ -17,7 +17,7 @@ from app.core.config import settings
 
 _client: InferenceClient | None = None
 
-MODEL_ID = "Qwen/Qwen2.5-Coder-32B-Instruct"
+MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"
 
 
 def _get_client() -> InferenceClient:
@@ -25,7 +25,7 @@ def _get_client() -> InferenceClient:
     if _client is None:
         if not settings.HF_API_TOKEN:
             raise RuntimeError("HF_API_TOKEN no está configurada")
-        _client = InferenceClient(provider="hf-inference", api_key=settings.HF_API_TOKEN)
+        _client = InferenceClient(api_key=settings.HF_API_TOKEN)
     return _client
 
 
